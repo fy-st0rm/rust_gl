@@ -1,7 +1,7 @@
 mod window;
+mod shader;
 
 use std::{
-	ffi::{ CStr, CString },
 	ptr,
 	time::Duration,
 };
@@ -12,6 +12,7 @@ use sdl2::{
 use gl;
 use gl::types::*;
 use window::Window;
+use shader::Shader;
 
 // Shaders
 const v_shader_src: &str = r#"
@@ -29,55 +30,6 @@ const f_shader_src: &str = r#"
 		color = vec4(1, 0, 0, 1.0);
 	}
 "#;
-
-fn compile_shader(src: &str, shader_type: GLenum) -> GLuint {
-	let shader;
-	unsafe {
-		shader = gl::CreateShader(shader_type);
-		let c_str = CString::new(src.as_bytes()).unwrap();
-		gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
-		gl::CompileShader(shader);
-
-		// Check for error
-		let mut sucess = gl::FALSE as GLint;
-		let mut info_log = vec![0; 512];
-		gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut sucess);
-		if sucess != gl::TRUE as GLint {
-			gl::GetShaderInfoLog(
-				shader, 512, ptr::null_mut(),
-				info_log.as_mut_ptr() as *mut GLchar
-			);
-			panic!(
-				"ERROR::SHADER::COMPILATION_FAILED\n{}",
-				CStr::from_ptr(info_log.as_ptr() as *const i8).to_str().unwrap()
-			);
-		}
-	}
-	shader
-}
-
-fn link_program(v_shader: GLuint, f_shader: GLuint) -> GLuint {
-	let program;
-	unsafe {
-		program = gl::CreateProgram();
-		gl::AttachShader(program, v_shader);
-		gl::AttachShader(program, f_shader);
-		gl::LinkProgram(program);
-
-		// Check for linking errors
-		let mut success = gl::FALSE as GLint;
-		let mut info_log = vec![0; 512];
-		gl::GetProgramiv(program, gl::LINK_STATUS, &mut success);
-		if success != gl::TRUE as GLint {
-			gl::GetProgramInfoLog(program, 512, ptr::null_mut(), info_log.as_mut_ptr() as *mut GLchar);
-			panic!(
-				"ERROR::PROGRAM::LINKING_FAILED\n{}",
-				CStr::from_ptr(info_log.as_ptr() as *const i8).to_str().unwrap()
-			);
-		}
-	}
-	program
-}
 
 fn main() -> Result<(), String> {
 	let mut window = Window::new("Wall Runner", 800, 600)?;
@@ -119,10 +71,8 @@ fn main() -> Result<(), String> {
 		gl::BindVertexArray(0);
 	}
 
-	// Compiling shaders
-	let vertex_shader = compile_shader(v_shader_src, gl::VERTEX_SHADER);
-	let fragment_shader = compile_shader(f_shader_src, gl::FRAGMENT_SHADER);
-	let shader_program = link_program(vertex_shader, fragment_shader);
+	// Creating shader
+	let shader = Shader::from_src(v_shader_src, f_shader_src).unwrap();
 
 	'running: loop {
 		window.clear(0.5, 0.5, 0.5, 0.5);
@@ -143,7 +93,7 @@ fn main() -> Result<(), String> {
 		// Rendering
 		unsafe {
 			gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-			gl::UseProgram(shader_program);
+			shader.bind();
 			gl::BindVertexArray(vao);
 			gl::DrawArrays(gl::TRIANGLES, 0, 3);
 		}
@@ -155,9 +105,7 @@ fn main() -> Result<(), String> {
 	// Cleaning
 	unsafe {
 		gl::DeleteVertexArrays(1, &vao);
-		gl::DeleteProgram(shader_program);
-		gl::DeleteShader(vertex_shader);
-		gl::DeleteShader(fragment_shader);
+		shader.delete();
 	}
 
 	Ok(())
