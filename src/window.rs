@@ -50,11 +50,4 @@ impl Window {
 	pub fn update(&mut self) {
 		self.sdl_window.gl_swap_window();
 	}
-
-	pub fn clear(&mut self, r: f32, g: f32, b: f32, a: f32) {
-		unsafe {
-			gl::ClearColor(r, g, b, a);
-			gl::Clear(gl::COLOR_BUFFER_BIT);
-		}
-	}
 }
